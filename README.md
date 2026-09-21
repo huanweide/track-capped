@@ -51,3 +51,21 @@ node test.js
 ## 家族封顶说明
 
 截至 2026-08-16，工程健康家族已覆盖 SonarQube TOP 全部静态坏味道 + git 四件套 + 配置层 + 编排 + 展示五形态。经 WebSearch 验证，err / file-hygiene / i18n / timezone / CI 五类新轴均被免费工具（aislop / wssweep / localediff / timeloc / pipechecker 等）占满，违反"比竞品更好或市场压根无"硬标准。候选池（nono / Book-to-Skill / formlite / Jay / SkillForge）全部偏离零依赖基线。至此横向切口枯竭，`track-capped` 作为家族阶段的封装终点。
+
+---
+
+## 作者
+
+由 **ReTr · 樊斯瑞** 维护 · [GitHub 主页](https://github.com/huanweide)
+
+## CI 门禁用法
+
+开箱即可接入 CI：在流水线中运行本工具，它会输出健康分与严重度；若存在不达标项会以非 0 退出码结束，从而拦下问题提交（具体参数见上方「快速开始」）。
+
+## 赞助支持
+
+如果这个项目帮到了你，欢迎 [点 Star](https://github.com/huanweide/track-capped) 支持；也可微信扫码自愿赞助（收款码见 `sponsor/wechat-qr.png`，作者本人带 Tri 水印的码，纯静态图片、不含任何密钥）。
+
+## 许可证
+
+详见 [LICENSE](LICENSE)。
