@@ -3,3 +3,10 @@ _family-portal.html
 portal.html
 *.log
 .DS_Store
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.keystore
+credentials.json

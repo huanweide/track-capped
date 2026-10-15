@@ -152,3 +152,39 @@ test('CLI 边界: --root 缺值 -> 退出码 2', () => {
   assert.equal(code, 2);
   assert.ok(errOut.includes('错误'));
 });
+
+test('auditSelf: 当前内置家族清单必须自洽 (决策树 <-> LAYER_MAP 双向覆盖)', () => {
+  const r = mod.auditSelf();
+  assert.deepEqual(r.issues, [], '存在清单漂移: ' + r.issues.join(' / '));
+  assert.ok(r.ok);
+  assert.ok(r.familySize >= 20, '轴数不应缩水, 实际 ' + r.familySize);
+});
+
+test('auditSelf: 决策树出现未分类 slug 必被检出 (变异测试)', () => {
+  try {
+    mod.DECISION_TREE.push(['测试用临时条目', 'ghost-axis-xyz']);
+    const r = mod.auditSelf();
+    assert.equal(r.ok, false, '未分类 slug 未被检出');
+    assert.ok(r.issues.some((i) => i.includes('ghost-axis-xyz')));
+  } finally {
+    mod.DECISION_TREE.pop();
+  }
+  assert.equal(mod.auditSelf().ok, true, '恢复后应重新自洽');
+});
+
+test('CLI: --check 自洽时退出码 0 且报告轴数', () => {
+  const out = execFileSync(NODE, [CLI, '--check'], { encoding: 'utf8' });
+  assert.ok(out.includes('自检通过'));
+  assert.match(out, /\d+ 轴/);
+});
+
+test('renderPortal: 未分类目录必须被显式告警, 不能静默丢弃', () => {
+  const html = mod.renderPortal({
+    root: '/tmp/x',
+    projects: [{ slug: 'some-random-dir', title: 't', desc: '', files: [], hasEntry: false, layer: '未分类' }],
+    generatedAt: '2026-08-16T00:00:00Z',
+  });
+  assert.ok(html.includes('some-random-dir'), '未分类目录未出现在页面');
+  assert.ok(html.includes('不属于本家族'), '缺少未分类告警文案');
+  assert.ok(html.includes('清单自检通过'), '缺少自检徽标');
+});

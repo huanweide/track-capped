@@ -25,17 +25,24 @@ const path = require('path');
 const VERSION = '1.0.0';
 
 // 家族治理层分类（doctor slug -> layer），内置知识（非文件扫描）
+//
+// 一致性铁律：LAYER_MAP 与 DECISION_TREE 是同一份家族清单的两种视图，
+// 任何一侧新增条目，另一侧必须同步，否则 `node index.js --check` 会非 0 退出。
+// （家族新增轴时忘记更新本表，是本工具历史上真实发生过的漂移，故做成硬门禁。）
 const LAYER_MAP = {
   '源码层·静态坏味道': ['idiot-index', 'devdoctor', 'testlite', 'debtlens', 'a11ydoctor', 'awaitscan', 'cycscan', 'secscan', 'dupscan', 'typedoctor', 'debugdoctor', 'litdoctor'],
+  '依赖与结构层': ['licguard', 'chaineye'],
   'git 层·治理': ['repodoctor', 'docdoctor', 'commitdoctor', 'reldoctor'],
-  '配置层': ['pkgdoctor'],
+  '配置层': ['pkgdoctor', 'ghadoctor'],
   '编排层': ['enghealth'],
   '展示/门户': ['family-showcase', 'track-capped'],
 };
 
 // 选型决策树（知识，硬编码；扫描仅补充"已归档项目"清单）
 const DECISION_TREE = [
-  ['想查依赖是否臃肿 / 死依赖 / 许可证风险', 'idiot-index · devdoctor · licguard'],
+  ['想查依赖是否臃肿 / 死依赖', 'idiot-index \u00b7 devdoctor'],
+  ['想查依赖许可证风险 (GPL / AGPL)', 'licguard'],
+  ['想查改了 X 会影响谁 (import 图谱)', 'chaineye'],
   ['想查测试卫生 / 覆盖率配置', 'testlite'],
   ['想查技术债密度 (TODO/FIXME)', 'debtlens'],
   ['想查前端可访问性 (a11y)', 'a11ydoctor'],
@@ -51,7 +58,9 @@ const DECISION_TREE = [
   ['想查提交消息规范', 'commitdoctor'],
   ['想查发布一致性 (version/tag/CHANGELOG)', 'reldoctor'],
   ['想查 package.json 配置规范', 'pkgdoctor'],
+  ['想查 GitHub Actions 配置卫生', 'ghadoctor'],
   ['想一键全检 + 总分 (编排入口)', 'enghealth'],
+  ['想看全景展示站 / 动态门户', 'family-showcase \u00b7 track-capped'],
 ];
 
 function layerOf(slug) {
@@ -64,11 +73,12 @@ function layerOf(slug) {
 }
 
 function parseArgs(argv) {
-  const args = { root: null, out: null, json: false, help: false, rootMissing: false };
+  const args = { root: null, out: null, json: false, check: false, help: false, rootMissing: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') { args.help = true; continue; }
     if (a === '--json') { args.json = true; continue; }
+    if (a === '--check') { args.check = true; continue; }
     if (a === '--root') {
       const v = argv[++i];
       if (v === undefined || v.startsWith('-')) {
@@ -153,6 +163,7 @@ function esc(s) {
 function accentFor(layer) {
   const map = {
     '源码层·静态坏味道': '#5eead4',
+    '依赖与结构层': '#2dd4bf',
     'git 层·治理': '#a78bfa',
     '配置层': '#fbbf24',
     '编排层': '#f472b6',
@@ -160,6 +171,39 @@ function accentFor(layer) {
     '未分类': '#94a3b8',
   };
   return map[layer] || '#94a3b8';
+}
+
+/*
+ * 自检：LAYER_MAP 与 DECISION_TREE 是否仍是同一份家族清单。
+ * 两表手工维护，历史上真实发生过「家族新增 licguard/ghadoctor，决策树补了但分类表没补」
+ * 的漂移——工具会把它静默归入"未分类"，用户看不出自己扫到的是家族成员还是陌生目录。
+ * 本函数把这种漂移变成可被 CI 拦下的确定性失败。
+ */
+function auditSelf() {
+  const issues = [];
+  const classified = new Set();
+  const dupes = [];
+  for (const slugs of Object.values(LAYER_MAP)) {
+    for (const s of slugs) {
+      if (classified.has(s)) dupes.push(s);
+      classified.add(s);
+    }
+  }
+  if (dupes.length) issues.push(`LAYER_MAP 内 slug 重复定义: ${[...new Set(dupes)].join(', ')}`);
+
+  const treeSlugs = new Set();
+  for (const [, ans] of DECISION_TREE) {
+    for (const s of ans.split('\u00b7').map((x) => x.trim())) {
+      if (s) treeSlugs.add(s);
+    }
+  }
+  for (const s of treeSlugs) {
+    if (!classified.has(s)) issues.push(`决策树提到但未在 LAYER_MAP 分类: ${s}`);
+  }
+  for (const s of classified) {
+    if (!treeSlugs.has(s)) issues.push(`LAYER_MAP 已分类但决策树无对应选型入口: ${s}`);
+  }
+  return { ok: issues.length === 0, issues, familySize: classified.size };
 }
 
 function renderPortal(ctx) {
@@ -193,6 +237,14 @@ function renderPortal(ctx) {
 
   const total = projects.length;
   const withEntry = projects.filter((p) => p.hasEntry).length;
+  const uncategorized = byLayer['未分类'] || [];
+  const selfCheck = auditSelf();
+  const selfCheckBadge = selfCheck.ok
+    ? `<span class="tag ok">清单自检通过 \u00b7 ${selfCheck.familySize} 轴</span>`
+    : `<span class="tag bad">清单自检失败 \u00b7 ${selfCheck.issues.length} 项</span>`;
+  const uncategorizedBlock = uncategorized.length
+    ? `<div class="warn">检测到 ${uncategorized.length} 个目录不属于本家族（未分类）：${uncategorized.map((p) => esc(p.slug)).join('、')}。这通常意味着扫描根目录选错，或家族新增了轴但本工具尚未更新分类表（请运行 <code>--check</code> 查看）。</div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -222,6 +274,11 @@ function renderPortal(ctx) {
   .stat span { display: block; color: #94a3b8; font-size: 12px; }
   .cap { display: inline-block; margin-top: 10px; padding: 4px 12px; border-radius: 999px;
     background: rgba(244,114,182,.12); border: 1px solid rgba(244,114,182,.4); color: #f9a8d4; font-size: 12px; }
+  .badge-row { margin-top: 10px; }
+  .tag.bad { background: rgba(248,113,113,.16); color: #fca5a5; border: 1px solid rgba(248,113,113,.4); }
+  .warn { margin: 14px auto 0; max-width: 760px; text-align: left; font-size: 13px;
+    background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.34);
+    border-radius: 12px; padding: 10px 14px; color: #fde68a; }
   section { margin: 30px 0; }
   h2 { font-size: 18px; border-left: 4px solid #38bdf8; padding-left: 10px; margin: 0 0 14px;
     display: flex; align-items: center; gap: 8px; }
@@ -261,8 +318,11 @@ function renderPortal(ctx) {
       <div class="stat"><b>${total}</b><span>已归档项目</span></div>
       <div class="stat"><b>${withEntry}</b><span>含可执行入口</span></div>
       <div class="stat"><b>${layerOrder.length}</b><span>治理层</span></div>
+      <div class="stat"><b>${selfCheck.familySize}</b><span>家族轴数</span></div>
     </div>
-    <div class="cap">横向切口已枯竭 · 家族封顶 · 2026-08-16</div>
+    <div class="cap">横向切口已枯竭 \u00b7 家族封顶 \u00b7 2026-08-16</div>
+    <div class="badge-row">${selfCheckBadge}</div>
+    ${uncategorizedBlock}
   </header>
 
   <section>
@@ -288,21 +348,34 @@ function printHelp() {
   process.stdout.write(
     'track-capped — 工程健康家族·封顶门户生成器 (v' + VERSION + ')\n\n' +
     '用法:\n' +
-    '  node track-capped.js [root] [--root <dir>] [--out <file>] [--json] [--help]\n\n' +
+    '  node index.js [root] [--root <dir>] [--out <file>] [--json] [--check] [--help]\n\n' +
     '参数:\n' +
     '  root / --root <dir>   要扫描的已归档目录 (默认: 当前工作目录)\n' +
     '  --out <file>          输出 HTML 路径 (默认: <root>/_family-portal.html)\n' +
     '  --json                仅输出扫描到的项目清单 JSON (不含门户)\n' +
+    '  --check               自检家族清单一致性 (LAYER_MAP <-> 决策树), 有漂移则退出码 3\n' +
     '  --help / -h           显示本帮助\n\n' +
     '示例:\n' +
-    '  node track-capped.js "C:/Users/Administrator/Desktop/GitHub-PreStorage/当前深耕"\n' +
-    '  node track-capped.js --root ./当前深耕 --out portal.html\n'
+    '  node index.js ./当前深耕\n' +
+    '  node index.js --root ./当前深耕 --out portal.html\n' +
+    '  node index.js --check\n'
   );
 }
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { printHelp(); process.exit(0); }
+
+  if (args.check) {
+    const r = auditSelf();
+    if (r.ok) {
+      process.stdout.write('家族清单自检通过: ' + r.familySize + ' 轴, LAYER_MAP 与决策树一致\n');
+      process.exit(0);
+    }
+    process.stderr.write('家族清单自检失败 (' + r.issues.length + ' 项):\n');
+    for (const i of r.issues) process.stderr.write('  - ' + i + '\n');
+    process.exit(3);
+  }
 
   if (args.rootMissing) {
     process.stderr.write('错误: --root 需要一个目录参数\n');
@@ -336,4 +409,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { parseArgs, extractReadmeMeta, layerOf, scanProjects, renderPortal, LAYER_MAP, DECISION_TREE };
+module.exports = { parseArgs, extractReadmeMeta, layerOf, scanProjects, renderPortal, auditSelf, LAYER_MAP, DECISION_TREE, VERSION };
