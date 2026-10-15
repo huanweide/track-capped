@@ -1,0 +1,32 @@
+{
+  "lastOptimized": "2026-10-15",
+  "round": 1,
+  "status": "optimized",
+  "direction": "单点深度特化：让「动态门户」这一唯一卖点可信 —— 把两张手工维护的家族清单表之间的漂移变成 CI 可拦的硬门禁，并让未分类目录显式告警",
+  "improvements": [
+    "P0 清单漂移真缺陷：LAYER_MAP 漏分 licguard/chaineye/ghadoctor，DECISION_TREE 漏 ghadoctor 与展示层入口，两表实为同一份清单却无任何一致性约束 —— 后果是这三轴被静默归入「未分类」，用户无从察觉",
+    "P0 新增 auditSelf() + `--check` 模式（退出码 3）：两表双向覆盖 + slug 去重，漏改即 CI 红灯",
+    "P0 门户页新增自检徽标与「家族轴数」统计（此前 4 处硬编码数字，实为 21 轴却从未显示）",
+    "P0 门户页新增未分类目录告警块：扫错根目录 / 家族新增轴不再静默",
+    "P1 README 整段「CI 门禁用法」是从体检 CLI 模板复制的说谎段（本工具从不输出健康分、也从不因质量问题非 0 退出）→ 重写全文：参数表 + 退出码约定 + 清单门禁章节",
+    "P1 README 示例残留作者本机绝对路径 C:/Users/Administrator/Desktop/... → 改为相对路径",
+    "P1 README 轴数「17 轴」与实际 23 轴不符；CLI 帮助文本仍自称 track-capped.js（实际入口是 index.js）",
+    "P1 零 CI → 新增 verify.yml：ubuntu + windows 双平台 × (单测 → --check → 端到端冒烟)",
+    "P1 补 scripts/smoke-cli.js（13 项断言），含「产物零外部请求」正则扫描，守住自包含承诺",
+    "P2 零 LICENSE → 补 MIT；.gitignore 补 .env/密钥/证书类禁入项"
+  ],
+  "decisionLog": [
+    "存活评估：保留。本工具的定位是「扫本地真实归档生成动态门户」，与 family-showcase（硬编码静态全景）互补而非重复；家族内自闭环有真实使用场景，无碾压级替代。",
+    "方向选择：选「单点深度特化」而非转向。理由——它的唯一卖点就是「动态 + 可信」，当前失败点全部集中在「两表不同步导致门户不可信」，属深度问题不是方向问题。",
+    "决策原因（为何先做 track-capped）：同族 23 个 0-star 批量产物里，它与 doctors/enghealth/family-showcase 同属「门面/编排」层，机制改动可被下游全部复用；沿用已沉淀的四维快扫 + 三类共性缺陷套路。",
+    "变异测试纪律：对新写的冒烟脚本做 3 次变异（注入 CDN 外链 / 去掉未分类告警 / 决策树漏一个轴），3/3 全部拦下（rc=1/1/3），才敢把它接进 CI。",
+    "自身失误记录：① 首次扫描池状态时用 `gh api ... -q .sha 2>/dev/null` 判断标记文件，API 404 时静默返回空，误判为「全部已标记」，差点跳过 24 个未优化仓库 —— 教训：判断存在性必须显式判 http 状态码，不能靠静默失败。② 中途执行 `git reset --hard` 清掉了已改好的 index.js/README/test.js，幸而新建文件未受影响、远端可恢复，已重做并加断言防回归。③ 用 python 切片替换 JS 常量块时 marker 选错导致 DECISION_TREE 被吞，脚本中途报错未静默通过 —— 断言 `s != orig` 起作用。"
+  ],
+  "verification": {
+    "unit": "node --test test.js -> 18/18 pass",
+    "gate": "node index.js --check -> 23 轴自洽, rc=0",
+    "smoke": "node scripts/smoke-cli.js -> 13/13 断言, rc=0",
+    "mutation": "3 次变异全部被拦 (rc=1/1/3)"
+  },
+  "pr": "见仓库 PR #1（[GH-Optimizer] 清单一致性硬门禁）"
+}

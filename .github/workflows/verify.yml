@@ -1,0 +1,31 @@
+name: verify
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 单测
+        run: node --test test.js
+
+      - name: 家族清单自检 (--check 门禁)
+        run: node index.js --check
+
+      - name: 端到端冒烟 + 产物自包含 (无外部请求 / CDN)
+        run: node scripts/smoke-cli.js
