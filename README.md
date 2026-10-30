@@ -1,5 +1,9 @@
 # track-capped · 工程健康家族封顶门户生成器
 
+> **English**: 暂未提供
+
+> **工程健康家族**（一组零依赖代码体检工具的集合）的「封顶」门户生成器——封顶：家族体检工具已覆盖完主要维度，本工具负责把已归档成员聚合成一张可离线浏览的导航门户。
+
 零依赖单文件 Node CLI。扫描本地已归档的工程健康家族目录，动态生成一张**自包含**导航门户 HTML（家族地图 + 选型决策树 + 已归档清单 + 清单自检徽标）。
 
 数据来自你磁盘上的真实归档，而不是硬编码的展示数据——重跑一次，门户即更新。
@@ -13,10 +17,10 @@
 零依赖，无需安装，直接跑：
 
 ```bash
-node index.js ./当前深耕                    # 生成 ./当前深耕/_family-portal.html
-node index.js --root ./当前深耕 --out portal.html
+node index.js ./family-archive                    # 生成 ./family-archive/_family-portal.html
+node index.js --root ./family-archive --out portal.html
 node index.js --check                      # 家族清单自检（CI 门禁用）
-node index.js --root ./当前深耕 --json      # 只输出扫描结果 JSON
+node index.js --root ./family-archive --json      # 只输出扫描结果 JSON
 node index.js --help
 ```
 
@@ -36,7 +40,7 @@ node index.js --help
 
 ## 为什么需要它
 
-家族二十余个成员散落在桌面不同日期目录，缺一个动态总入口把它们串起来。静态展示站会与真实归档脱节；本工具扫真实目录，重跑即更新。
+工程健康家族二十余个成员散落在多处本地归档目录，缺一个动态总入口把它们串起来。静态展示站会与真实归档脱节；本工具扫真实目录，重跑即更新。
 
 ## 清单一致性门禁（`--check`）
 
@@ -66,7 +70,7 @@ CI（`.github/workflows/verify.yml`）在 ubuntu + windows 双平台依次跑：
 
 ## 作者
 
-由 **ReTr · huanweide** 维护 · [GitHub 主页](https://github.com/huanweide)
+由 **huanweide** 维护 · [GitHub 主页](https://github.com/huanweide)
 
 
 ## 许可证
